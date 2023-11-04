@@ -36,8 +36,7 @@ class ZoneData {
 WiFiClient client;
 HADevice device;
 HAMqtt mqtt(client, device);
-<<<<<<< HEAD
-HASwitch led("led", (void*) new ZoneData( LED_PIN, LED_PIN));
+HASwitch led("led", (void*) new ZoneData( LED_PIN, LED_PIN)); // unique identifier must not contain spaces
 HASwitch zone[] = { 
     HASwitch("Zone0", (void*) new ZoneData( 6, 16)),
     HASwitch("Zone1", (void*) new ZoneData( 7, 17)),
@@ -53,9 +52,6 @@ HASwitch zone[] = {
 
 uint8_t zone_pins[] = {  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 };
 uint8_t zled_pins[] = { 16, 17, 18, 19, 20, 21, 22, 26, 27, 28 };
-=======
-HASwitch led("led");  // unique identifier must not contain spaces
->>>>>>> main-dev-JaCh
 
 void HAIntegration::configure() {
 
@@ -97,9 +93,8 @@ void HAIntegration::configure() {
 
     // handle switch state
     led.onCommand(switchHandler);
-<<<<<<< HEAD
     led.setName("FlowBot LED"); // optional
-    led.setIcon("mdi:led-outline"); // optional
+    led.setIcon("mdi:led-outline"); // optional (Used to set the icon used in HA)
 
     // Zone state
     for(uint8_t i = 0; i < 10; i++)
@@ -113,10 +108,6 @@ void HAIntegration::configure() {
         zone[i].setName(zone_name[i]); // optional
         zone[i].setIcon("mdi:sprinkler-variant");
     }
-=======
-    led.setName("Board LED"); // optional
-    led.setIcon("mdi:led-outline"); // optional (Used to set the icon used in HA)
->>>>>>> main-dev-JaCh
 
     Serial.print("Connecting to MQTT\n");
     
