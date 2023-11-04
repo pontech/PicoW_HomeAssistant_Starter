@@ -22,7 +22,7 @@ void Network::connect() {
   }
 
   if (status == WL_CONNECTED) {
-    Serial.println("Connected to");
+    Serial.print("Connected to ");
     Serial.println(WIFI_SSID);
   }
 }

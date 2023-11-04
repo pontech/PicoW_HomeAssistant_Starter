@@ -7,7 +7,9 @@ HAIntegration integration;
 void setup() {
   Serial.begin();
 
-  delay(1000); //Give the serial terminal a chance to connect, if present
+  delay(3000); //Give the serial terminal a chance to connect, if present
+
+  Serial.println("Pico Pi Serial Connected");
 
   Network::connect();
   integration.configure();
