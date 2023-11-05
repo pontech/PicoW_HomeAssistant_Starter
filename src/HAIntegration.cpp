@@ -26,10 +26,12 @@ class ZoneData {
     public:
         uint8_t led_pin;
         uint8_t ssr_pin;
+        uint32_t last_start_time;
     ZoneData(uint8_t led_pin, uint8_t ssr_pin) : 
         led_pin(led_pin), 
         ssr_pin(ssr_pin)
     {
+        last_start_time = 0;
     }
 };
 
@@ -37,7 +39,8 @@ WiFiClient client;
 HADevice device("FlowBot-28cdc10aea3a"); // Hardcoding a MAC address here (until we figure out how to get it before or durring instantation)
 HAMqtt mqtt(client, device);
 HASwitch led("LED", (void*) new ZoneData( LED_PIN, LED_PIN)); // unique identifier must not contain spaces
-HASwitch zone[] = { 
+const uint8_t MAX_ZONES = 10;
+HASwitch zone[MAX_ZONES] = { 
     HASwitch("Zone0", (void*) new ZoneData( 6, 16)),
     HASwitch("Zone1", (void*) new ZoneData( 7, 17)),
     HASwitch("Zone2", (void*) new ZoneData( 8, 18)),
@@ -50,10 +53,11 @@ HASwitch zone[] = {
     HASwitch("Zone9", (void*) new ZoneData(15, 28)),
 };
 
-uint8_t zone_pins[] = { 11, 12, 13, 10, 14,  9, 15,  8,  7,  6 };
-uint8_t zled_pins[] = { 16, 17, 18, 19, 20, 21, 22, 26, 27, 28 };
+uint8_t zone_pins[MAX_ZONES] = { 11, 12, 13, 10, 14,  9, 15,  8,  7,  6 };
+uint8_t zled_pins[MAX_ZONES] = { 16, 17, 18, 19, 20, 21, 22, 26, 27, 28 };
 
 HANumber floodPreventionTimeoutSeconds("FPT", (HABaseDeviceType::NumberPrecision)0); //PrecisionP0);
+HANumeric floodPreventionTimeoutSecondsValue = HANumeric((uint32_t)301, (HABaseDeviceType::NumberPrecision)0);
 
 void HAIntegration::configure() {
 
@@ -63,7 +67,7 @@ void HAIntegration::configure() {
     digitalWrite(LED_PIN, LOW);    
 
     // Prepare Zones
-    for(uint8_t i = 0; i < 10; i++)
+    for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
         pinMode(zone_pins[i], OUTPUT);
         digitalWrite(zone_pins[i], LOW);
@@ -75,12 +79,16 @@ void HAIntegration::configure() {
     delay(1000);
     digitalWrite(LED_PIN, LOW);    
     delay(1000);
-    for(uint8_t i = 0; i < 10; i++)
+    for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
         digitalWrite(zled_pins[i], HIGH);
         delay(100);
         digitalWrite(zled_pins[i], LOW);
     }
+
+    // The setDataPrefix needs to be called before the enableSharedAvailability()/enableLastWill() are called otherwise the default value is used.
+    //mqtt.setDiscoveryPrefix("homeassistant"); // [OPTIONAL] Default values is "homeassistant" and it must be this for automatic discovery
+    mqtt.setDataPrefix("plp"); // [OPTIONAL] This defaults to "aha" but you can change it without issue
 
     //Set device ID as MAC address
 
@@ -104,7 +112,7 @@ void HAIntegration::configure() {
     led.setIcon("mdi:led-outline"); // optional (Used to set the icon used in HA)
 
     // Zone state
-    for(uint8_t i = 0; i < 10; i++)
+    for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
         zone[i].onCommand(switchHandler);
         // char str[10];
@@ -125,8 +133,6 @@ void HAIntegration::configure() {
     floodPreventionTimeoutSeconds.setCurrentState((uint32_t)(5*60)); // This set the starting value reported to HA
 
     Serial.print("Connecting to MQTT\n");
-    //mqtt.setDiscoveryPrefix("homeassistant"); // [OPTIONAL] Default values is "homeassistant" and it must be this for automatic discovery
-    mqtt.setDataPrefix("plp"); // [OPTIONAL] This defaults to "aha" but you can change it without issue
 
     if (mqtt.begin(MQTT_BROKER, MQTT_LOGIN, MQTT_PASSWORD) == true) {
         Serial.print("Connected to MQTT broker\n");
@@ -146,13 +152,37 @@ void HAIntegration::switchHandler(bool state, HASwitch* sender) {
         ((ZoneData*)(sender->getData()))->led_pin,
         ((ZoneData*)(sender->getData()))->ssr_pin
         );
+        ((ZoneData*)(sender->getData()))->last_start_time = millis();
 }
 
 void HAIntegration::numberHandler(HANumeric number, HANumber* sender) {
     sender->setState(number.toUInt32());  // report state back to Home Assistant
     Serial.printf("%s new value: %d\n", sender->getName(), number.toUInt32());
+    floodPreventionTimeoutSecondsValue = number;
 }
 
 void HAIntegration::loop() {
     mqtt.loop();
+
+    static uint32_t last = 0;
+    if( last < millis() )
+    {
+        last = millis() + 1; // Test this every 1 millisecond
+
+        uint32_t timeout = floodPreventionTimeoutSecondsValue.toInt32() * 1000;
+        uint32_t now = millis();
+        //Serial.printf("FPT=%ld, now= %ld, ", floodPreventionTimeoutSecondsValue.toInt32(), now);
+
+        for(uint8_t i = 0; i < MAX_ZONES; i++)
+        {
+            uint32_t start = ((ZoneData*)(zone[i].getData()))->last_start_time;
+            //Serial.printf("zone[%d]=%ld, ", i, start);
+            if( (now - start) > timeout ) // todo: 2 This should handle millis() rollovers (untested)
+            {
+                zone[i].setState(false);
+            }
+        }
+        //Serial.println();
+    }
+
 }
