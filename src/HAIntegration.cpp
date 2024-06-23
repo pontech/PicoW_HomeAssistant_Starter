@@ -36,65 +36,79 @@ class ZoneData {
 };
 
 WiFiClient client;
-HADevice device("FlowBot-28cdc10aea3a"); // Hardcoding a MAC address here (until we figure out how to get it before or durring instantation)
+HADevice device; // Setting uniqueId to "FlowBot-" + MAC address in HAIntegration::configure()
 HAMqtt mqtt(client, device);
 HASwitch led("LED", (void*) new ZoneData( LED_PIN, LED_PIN)); // unique identifier must not contain spaces
-const uint8_t MAX_ZONES = 10;
-HASwitch zone[MAX_ZONES] = { 
-    HASwitch("Zone0", (void*) new ZoneData( 6, 16)),
-    HASwitch("Zone1", (void*) new ZoneData( 7, 17)),
-    HASwitch("Zone2", (void*) new ZoneData( 8, 18)),
-    HASwitch("Zone3", (void*) new ZoneData( 9, 19)),
-    HASwitch("Zone4", (void*) new ZoneData(10, 20)),
-    HASwitch("Zone5", (void*) new ZoneData(11, 21)),
-    HASwitch("Zone6", (void*) new ZoneData(12, 22)),
-    HASwitch("Zone7", (void*) new ZoneData(13, 26)),
-    HASwitch("Zone8", (void*) new ZoneData(14, 27)),
-    HASwitch("Zone9", (void*) new ZoneData(15, 28)),
-};
 
+////////////////////////////////////////////////////////////////////
+// These array's define connect the GP# to the specific zone.
+// todo: 5 remove these arrays and just set the correct pins when
+//       making the zone[].
+////////////////////////////////////////////////////////////////////
+const uint8_t MAX_ZONES = 10;
 uint8_t zone_pins[MAX_ZONES] = { 11, 12, 13, 10, 14,  9, 15,  8,  7,  6 };
 uint8_t zled_pins[MAX_ZONES] = { 16, 17, 18, 19, 20, 21, 22, 26, 27, 28 };
+HASwitch zone[MAX_ZONES] = { 
+    HASwitch("Zone0", (void*) new ZoneData(zled_pins[0], zone_pins[0])),
+    HASwitch("Zone1", (void*) new ZoneData(zled_pins[1], zone_pins[1])),
+    HASwitch("Zone2", (void*) new ZoneData(zled_pins[2], zone_pins[2])),
+    HASwitch("Zone3", (void*) new ZoneData(zled_pins[3], zone_pins[3])),
+    HASwitch("Zone4", (void*) new ZoneData(zled_pins[4], zone_pins[4])),
+    HASwitch("Zone5", (void*) new ZoneData(zled_pins[5], zone_pins[5])),
+    HASwitch("Zone6", (void*) new ZoneData(zled_pins[6], zone_pins[6])),
+    HASwitch("Zone7", (void*) new ZoneData(zled_pins[7], zone_pins[7])),
+    HASwitch("Zone8", (void*) new ZoneData(zled_pins[8], zone_pins[8])),
+    HASwitch("Zone9", (void*) new ZoneData(zled_pins[9], zone_pins[9])),
+};
 
 HANumber floodPreventionTimeoutSeconds("FPT", (HABaseDeviceType::NumberPrecision)0); //PrecisionP0);
 HANumeric floodPreventionTimeoutSecondsValue = HANumeric((uint32_t)301, (HABaseDeviceType::NumberPrecision)0);
 
 void HAIntegration::configure() {
 
-    // Prepare LED:
+    ///////////////////////////////////////////
+    // Configure GPIO
+    ///////////////////////////////////////////
 
+    // Prepare LED:
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);    
 
     // Prepare Zones
     for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
-        pinMode(zone_pins[i], OUTPUT);
-        digitalWrite(zone_pins[i], LOW);
-        pinMode(zled_pins[i], OUTPUT);
-        digitalWrite(zled_pins[i], LOW);
+        pinMode(((ZoneData*)(zone[i].getData()))->led_pin, OUTPUT);
+        digitalWrite(((ZoneData*)(zone[i].getData()))->led_pin, LOW);
+        pinMode(((ZoneData*)(zone[i].getData()))->ssr_pin, OUTPUT);
+        digitalWrite(((ZoneData*)(zone[i].getData()))->ssr_pin, LOW);
     }
 
+    ///////////////////////////////////////////
+    // Startup LED Sequence
+    ///////////////////////////////////////////
+
     digitalWrite(LED_PIN, HIGH);    
-    delay(1000);
-    digitalWrite(LED_PIN, LOW);    
     delay(1000);
     for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
         digitalWrite(zled_pins[i], HIGH);
         delay(100);
-        digitalWrite(zled_pins[i], LOW);
     }
 
     // The setDataPrefix needs to be called before the enableSharedAvailability()/enableLastWill() are called otherwise the default value is used.
     //mqtt.setDiscoveryPrefix("homeassistant"); // [OPTIONAL] Default values is "homeassistant" and it must be this for automatic discovery
     mqtt.setDataPrefix("plp"); // [OPTIONAL] This defaults to "aha" but you can change it without issue
 
-    //Set device ID as MAC address
-
+    ///////////////////////////////////////////
+    // Set device ID as MAC address
+    ///////////////////////////////////////////
     byte mac[WL_MAC_ADDR_LENGTH];
     WiFi.macAddress(mac);
-    device.setUniqueId(mac, sizeof(mac));
+    char mac_string[30];
+    snprintf(mac_string,30,"FlowBot-%02x%02x%02x%02x%02x%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mac[6]);
+    Serial.printf("%s\n", mac_string);
+
+    device.setUniqueId(mac_string);    // [ALTERNATIVE] device.setUniqueId(mac, sizeof(mac));
     device.enableSharedAvailability(); // [OPTIONAL] Enables the ability to set the on/off line status of the device
     device.setAvailability(true); // Set the device to on-line
     device.enableLastWill(); // [OPTIONAL] Allows HA to detect when the device losses power (and thus disable the controls in the HA UI)
@@ -139,6 +153,14 @@ void HAIntegration::configure() {
     } else {
         Serial.print("Could (re)instantiate MQTT broker\n");
     }
+
+    for(uint8_t i = 0; i < MAX_ZONES; i++)
+    {
+        digitalWrite(zled_pins[i], LOW);
+        delay(100);
+    }
+    digitalWrite(LED_PIN, LOW);
+    delay(1000);
 }
 
 void HAIntegration::switchHandler(bool state, HASwitch* sender) {
@@ -179,6 +201,8 @@ void HAIntegration::loop() {
             //Serial.printf("zone[%d]=%ld, ", i, start);
             if( (now - start) > timeout ) // todo: 2 This should handle millis() rollovers (untested)
             {
+                digitalWrite(((ZoneData*)(zone[i].getData()))->led_pin, LOW);
+                digitalWrite(((ZoneData*)(zone[i].getData()))->ssr_pin, LOW);
                 zone[i].setState(false);
             }
         }

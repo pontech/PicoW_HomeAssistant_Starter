@@ -12,6 +12,8 @@ void setup() {
   Serial.println("Pico Pi Serial Connected");
 
   Network::connect();
+
+  Serial.println("integration.configure()");
   integration.configure();
 }
 
