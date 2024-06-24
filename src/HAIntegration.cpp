@@ -38,7 +38,7 @@ class ZoneData {
 WiFiClient client;
 HADevice device; // Setting uniqueId to "FlowBot-" + MAC address in HAIntegration::configure()
 HAMqtt mqtt(client, device);
-HASwitch led("LED", (void*) new ZoneData( LED_PIN, LED_PIN)); // unique identifier must not contain spaces
+HASwitch led((void*) new ZoneData( LED_PIN, LED_PIN)); // unique identifier must not contain spaces
 
 ////////////////////////////////////////////////////////////////////
 // These array's define connect the GP# to the specific zone.
@@ -49,19 +49,19 @@ const uint8_t MAX_ZONES = 10;
 uint8_t zone_pins[MAX_ZONES] = { 11, 12, 13, 10, 14,  9, 15,  8,  7,  6 };
 uint8_t zled_pins[MAX_ZONES] = { 16, 17, 18, 19, 20, 21, 22, 26, 27, 28 };
 HASwitch zone[MAX_ZONES] = { 
-    HASwitch("Zone0", (void*) new ZoneData(zled_pins[0], zone_pins[0])),
-    HASwitch("Zone1", (void*) new ZoneData(zled_pins[1], zone_pins[1])),
-    HASwitch("Zone2", (void*) new ZoneData(zled_pins[2], zone_pins[2])),
-    HASwitch("Zone3", (void*) new ZoneData(zled_pins[3], zone_pins[3])),
-    HASwitch("Zone4", (void*) new ZoneData(zled_pins[4], zone_pins[4])),
-    HASwitch("Zone5", (void*) new ZoneData(zled_pins[5], zone_pins[5])),
-    HASwitch("Zone6", (void*) new ZoneData(zled_pins[6], zone_pins[6])),
-    HASwitch("Zone7", (void*) new ZoneData(zled_pins[7], zone_pins[7])),
-    HASwitch("Zone8", (void*) new ZoneData(zled_pins[8], zone_pins[8])),
-    HASwitch("Zone9", (void*) new ZoneData(zled_pins[9], zone_pins[9])),
+    HASwitch((void*) new ZoneData(zled_pins[0], zone_pins[0])),
+    HASwitch((void*) new ZoneData(zled_pins[1], zone_pins[1])),
+    HASwitch((void*) new ZoneData(zled_pins[2], zone_pins[2])),
+    HASwitch((void*) new ZoneData(zled_pins[3], zone_pins[3])),
+    HASwitch((void*) new ZoneData(zled_pins[4], zone_pins[4])),
+    HASwitch((void*) new ZoneData(zled_pins[5], zone_pins[5])),
+    HASwitch((void*) new ZoneData(zled_pins[6], zone_pins[6])),
+    HASwitch((void*) new ZoneData(zled_pins[7], zone_pins[7])),
+    HASwitch((void*) new ZoneData(zled_pins[8], zone_pins[8])),
+    HASwitch((void*) new ZoneData(zled_pins[9], zone_pins[9])),
 };
 
-HANumber floodPreventionTimeoutSeconds("FPT", (HABaseDeviceType::NumberPrecision)0); //PrecisionP0);
+HANumber floodPreventionTimeoutSeconds((HABaseDeviceType::NumberPrecision)0); //PrecisionP0);
 HANumeric floodPreventionTimeoutSecondsValue = HANumeric((uint32_t)301, (HABaseDeviceType::NumberPrecision)0);
 
 void HAIntegration::configure() {
@@ -121,6 +121,7 @@ void HAIntegration::configure() {
     device.setModel("FlowBot100");
 
     // handle switch state
+    led.HABaseSetUniqueId("LED"); // Set Unique ID becuase it was not set when instantiated
     led.onCommand(switchHandler);
     led.setName("FlowBot LED"); // optional
     led.setIcon("mdi:led-outline"); // optional (Used to set the icon used in HA)
@@ -128,6 +129,11 @@ void HAIntegration::configure() {
     // Zone state
     for(uint8_t i = 0; i < MAX_ZONES; i++)
     {
+        char Zone[] = "Zone";
+        char* ZoneId = new char[strlen(Zone) + 2]; // include Number + null terminator
+        snprintf(ZoneId, strlen(Zone) + 2, "%s%d", Zone, i);
+        zone[i].HABaseSetUniqueId(ZoneId); // Set Unique ID becuase it was not set when instantiated
+
         zone[i].onCommand(switchHandler);
         // char str[10];
         // sprintf(str, "Zone %d", i);
@@ -138,6 +144,7 @@ void HAIntegration::configure() {
         zone[i].setIcon("mdi:sprinkler-variant");
     }
 
+    floodPreventionTimeoutSeconds.HABaseSetUniqueId("FPT"); // Set Unique ID becuase it was not set when instantiated
     floodPreventionTimeoutSeconds.onCommand(numberHandler);
     floodPreventionTimeoutSeconds.setName("Flood Prevention Timeout"); // [OPTIONAL] Defualts to "MQTT Number"
     floodPreventionTimeoutSeconds.setUnitOfMeasurement("seconds");
