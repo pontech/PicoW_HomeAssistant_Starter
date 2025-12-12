@@ -1,3 +1,7 @@
+# PONTECH FlowBot HA100 
+The PONTECH FLowBot HA100 is a Sprinkler Controller based on the Raspberry Pi Pico W Home Assistant Starter Project.
+
+
 # Raspberry Pi Pico W Home Assistant Starter Project Using `arduino-pico`
 
 I'm pretty excited about Pico W: it's such a reliable, high-quality board and each one costs just $6 (if you can find one).
